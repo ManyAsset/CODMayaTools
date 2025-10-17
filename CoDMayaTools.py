@@ -64,7 +64,7 @@ from subprocess import Popen, PIPE, STDOUT
 WarningsDuringExport = 0 # Number of warnings shown during current export
 CM_TO_INCH = 0.3937007874015748031496062992126 # 1cm = 50/127in
 M_PI = 3.14159265359
-FILE_VERSION = 2.9
+FILE_VERSION = 2.91
 VERSION_CHECK_URL = "https://raw.githubusercontent.com/Ray1235/CoDMayaTools/master/version"
  # Registry path for global data storage
 GLOBAL_STORAGE_REG_KEY = (reg.HKEY_CURRENT_USER, "Software\\CoDMayaTools")
@@ -210,7 +210,7 @@ def CreateMenu():
     cmds.setParent(menu, menu=True)
     cmds.menuItem(divider=True)
     # For easy script updating
-    cmds.menuItem(label="Reload Script", command="reload(CoDMayaTools)")
+    #cmds.menuItem(label="Reload Script", command="reload(CoDMayaTools)") NEED TO FIX THIS AT SOME POINT AS CURRENTLY GIVES ____FILE____ ERROR ELFEN.
 
     # Tools Info
     cmds.menuItem(label="About", command=lambda x:AboutWindow())
@@ -2596,152 +2596,208 @@ def UpdateMultiplier(windowID):
     fps = cmds.intField(OBJECT_NAMES[windowID][0]+"_qualityField", query=True, value=True)
     cmds.setAttr(OBJECT_NAMES[windowID][2]+(".multiplier[%i]" % slotIndex), fps)
 
+# ===========================================================
+# === UNIVERSAL NOTETRACK SYSTEM (SEANIM + CAST SUPPORT) SE ANIM WILL BE REMOVED ON 08/08/26 ====
+# ===========================================================
+
+USE_CAST = False  # Global flag; toggle True when in CAST mode, False for SEAnim
+
+def set_use_cast(enabled):
+    """Manually toggle CAST/SEAnim mode."""
+    global USE_CAST
+    USE_CAST = bool(enabled)
+    print(f"[CoDMayaTools] Mode set to: {'CAST' if USE_CAST else 'SEAnim'}")
+
+
+# -----------------------------------------------------------
+# Internal node helper
+# -----------------------------------------------------------
+def __get_notetrack_node__():
+    """Return the correct node name for current mode."""
+    return "CastNotetracks" if USE_CAST else "SENotes"
+
+
+def __get_notetracks__():
+    """Loads all the notetracks in the scene for either CAST or SEAnim."""
+    node = __get_notetrack_node__()
+    if not cmds.objExists(node):
+        cmds.rename(cmds.spaceLocator(), node)
+
+    if not cmds.objExists(f"{node}.Notetracks"):
+        cmds.addAttr(node, longName="Notetracks", dataType="string", storable=True)
+        cmds.setAttr(f"{node}.Notetracks", "{}", type="string")
+
+    return json.loads(cmds.getAttr(f"{node}.Notetracks"))
+
+
+# -----------------------------------------------------------
+# Add Note
+# -----------------------------------------------------------
 def AddNote(windowID):
-    """
-    Add notetrack to window and attribute when user creates one.
-    """
-    slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0]+"_SlotDropDown", query=True, select=True)
-    if cmds.promptDialog(title="Add Note to Slot %i's Notetrack" % slotIndex, message="Enter the note's name:\t\t  ") != "Confirm":
+    """Add notetrack entry for current mode."""
+    slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", query=True, select=True)
+    if cmds.promptDialog(title="Add Note", message="Enter the note's name:") != "Confirm":
         return
 
     userInput = cmds.promptDialog(query=True, text=True)
-    noteName = "".join([c for c in userInput if c.isalnum() or c=="_"]).replace("sndnt", "sndnt#").replace("rmbnt", "rmbnt#") # Remove all non-alphanumeric characters
+    noteName = "".join([c for c in userInput if c.isalnum() or c == "_"]) \
+        .replace("sndnt", "sndnt#").replace("rmbnt", "rmbnt#")
+
     if noteName == "":
         MessageBox("Invalid note name")
         return
 
-    existingItems = cmds.textScrollList(OBJECT_NAMES[windowID][0]+"_NoteList", query=True, allItems=True)
-
-    if existingItems != None and noteName in existingItems:
+    existingItems = cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", query=True, allItems=True)
+    if existingItems and noteName in existingItems:
         MessageBox("A note with this name already exists")
 
-    noteList = cmds.getAttr(OBJECT_NAMES[windowID][2]+(".notetracks[%i]" % slotIndex)) or ""
+    noteList = cmds.getAttr(OBJECT_NAMES[windowID][2] + (".notetracks[%i]" % slotIndex)) or ""
     noteList += "%s:%i," % (noteName, cmds.currentTime(query=True))
-    cmds.setAttr(OBJECT_NAMES['xanim'][2]+(".notetracks[%i]" % slotIndex), noteList, type='string')
-
-    cmds.textScrollList(OBJECT_NAMES[windowID][0]+"_NoteList", edit=True, append=noteName, selectIndexedItem=len((existingItems or []))+1)
+    cmds.setAttr(OBJECT_NAMES[windowID][2] + (".notetracks[%i]" % slotIndex), noteList, type='string')
+    cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", edit=True, append=noteName)
     SelectNote(windowID)
 
-def __get_notetracks__():
-    """Loads all the notetracks in the scene"""
-    if not cmds.objExists("CastNotetracks"):
-        cmds.rename(cmds.spaceLocator(), "CastNotetracks")
 
-    if not cmds.objExists("CastNotetracks.Notetracks"):
-        cmds.addAttr("CastNotetracks", longName="Notetracks",
-                     dataType="string", storable=True)
-        cmds.setAttr("CastNotetracks.Notetracks", "{}", type="string")
-
-    # Load the existing notetracks buffer, then ensure we have this notetrack
-    return json.loads(cmds.getAttr("CastNotetracks.Notetracks"))
-
+# -----------------------------------------------------------
+# Read Notetracks
+# -----------------------------------------------------------
 def ReadNotetracks(windowID):
-    """
-    Read notetracks from imported animations.
-    """
-    slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0]+"_SlotDropDown", query=True, select=True)
-    existingItems = cmds.textScrollList(OBJECT_NAMES[windowID][0]+"_NoteList", query=True, allItems=True)
-    noteList = cmds.getAttr(OBJECT_NAMES[windowID][2]+(".notetracks[%i]" % slotIndex)) or ""
-    # Get Notetracks
-    notetracks = __get_notetracks__()
-    # Add notetrack type prefix automatically
-    write_note_type = QueryToggableOption('PrefixNoteType')
-    for note, frames in notetracks.items():
-        # Ignore end/loop_end
-        if note == "end" or note == "loop_end":
-            continue
-        # Check if we want to write notetype
-        # and if note is not already prefixed.
-        if(write_note_type and not "nt#" in note):
-            # Set Sound Note as Standard
-            note_type = "sndnt"
-            # Split notetrack's name
-            notesplit = note.split("_")
-            # Check is this a rumble (first word will be viewmodel/reload)
-            if(notesplit[0] == "viewmodel" or notesplit[0] == "reload"):
-                note_type = "rmbnt"
-                note = note.replace("viewmodel", "reload")
-            # Append
-            note = "#".join((note_type, note))
-        # Loop through note frames
-        for frame in frames:
-            # Append to list and scroll list
-            noteList += "%s:%i," % (note, frame)
-            cmds.setAttr(OBJECT_NAMES[windowID][2]+(".notetracks[%i]" % slotIndex), noteList, type='string')
-            cmds.textScrollList(OBJECT_NAMES[windowID][0]+"_NoteList", edit=True, append=note, selectIndexedItem=len((existingItems or []))+1)
-    # Set selected note
-    SelectNote(windowID)
+    """Read notetracks for either CAST or SEAnim safely."""
+    try:
+        slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", query=True, select=True)
+        existingItems = cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", query=True, allItems=True)
+        noteList = cmds.getAttr(OBJECT_NAMES[windowID][2] + (".notetracks[%i]" % slotIndex)) or ""
+        notetracks = __get_notetracks__()
+        write_note_type = QueryToggableOption('PrefixNoteType')
 
+        # Clear existing notes first
+        try:
+            ClearNotes(windowID)
+        except Exception as e:
+            print(f"[CoDMayaTools] Could not clear notes before read: {e}")
+
+        appended_notes = []
+
+        for note, frames in notetracks.items():
+            if note in ("end", "loop_end"):
+                continue
+
+            # Add prefix if enabled
+            if write_note_type and "nt#" not in note:
+                note_type = "sndnt"
+                notesplit = note.split("_")
+                if notesplit[0] in ("viewmodel", "reload"):
+                    note_type = "rmbnt"
+                    note = note.replace("viewmodel", "reload")
+                note = "#".join((note_type, note))
+
+            for frame in frames:
+                noteList += "%s:%i," % (note, frame)
+                cmds.setAttr(OBJECT_NAMES[windowID][2] + (".notetracks[%i]" % slotIndex),
+                             noteList, type='string')
+                if note not in appended_notes:
+                    cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList",
+                                        edit=True, append=note)
+                    appended_notes.append(note)
+
+        if appended_notes:
+            try:
+                SelectNote(windowID)
+            except Exception:
+                pass
+
+        mode = "CAST" if USE_CAST else "SEAnim"
+
+    except Exception as e:
+        print(f"[CoDMayaTools] Failed to read notetracks: {e}")
+
+
+# -----------------------------------------------------------
+# Rename Note
+# -----------------------------------------------------------
 def RenameNotes(windowID):
-    """
-    Rename selected notetrack.
-    """
-    slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0]+"_SlotDropDown", query=True, select=True)
-    currentIndex = cmds.textScrollList(OBJECT_NAMES[windowID][0]+"_NoteList", query=True, selectIndexedItem=True)
-    if currentIndex != None and len(currentIndex) > 0 and currentIndex[0] >= 1:
-        if cmds.promptDialog(title="Rename NoteTrack in slot", message="Enter new notetrack name:\t\t  ") != "Confirm":
-            return
-
-        userInput = cmds.promptDialog(query=True, text=True)
-        noteName = "".join([c for c in userInput if c.isalnum() or c=="_"]).replace("sndnt", "sndnt#").replace("rmbnt", "rmbnt#") # Remove all non-alphanumeric characters
-        if noteName == "":
-            MessageBox("Invalid note name")
-            return
-        currentIndex = currentIndex[0]
-        noteList = cmds.getAttr(OBJECT_NAMES[windowID][2]+(".notetracks[%i]" % slotIndex)) or ""
-        notes = noteList.split(",")
-        noteInfo = notes[currentIndex-1].split(":")
-        note = int(noteInfo[1])
-        NoteTrack = userInput
-
-        # REMOVE NOTE
-
-        cmds.textScrollList(OBJECT_NAMES[windowID][0]+"_NoteList", edit=True, removeIndexedItem=currentIndex)
-        noteList = cmds.getAttr(OBJECT_NAMES[windowID][2]+(".notetracks[%i]" % slotIndex)) or ""
-        notes = noteList.split(",")
-        del notes[currentIndex-1]
-        noteList = ",".join(notes)
-        cmds.setAttr(OBJECT_NAMES[windowID][2]+(".notetracks[%i]" % slotIndex), noteList, type='string')
-
-        # REMOVE NOTE
-        noteList = cmds.getAttr(OBJECT_NAMES[windowID][2]+(".notetracks[%i]" % slotIndex)) or ""
-        noteList += "%s:%i," % (NoteTrack, note) # Add Notes to Aidan's list.
-        cmds.setAttr(OBJECT_NAMES[windowID][2]+(".notetracks[%i]" % slotIndex), noteList, type='string')
-        cmds.textScrollList(OBJECT_NAMES[windowID][0]+"_NoteList", edit=True, append=NoteTrack, selectIndexedItem=currentIndex)
-        SelectNote(windowID)
-
-def RemoveNote(windowID):
-    """
-    Remove Note
-    """
-    slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0]+"_SlotDropDown", query=True, select=True)
-    currentIndex = cmds.textScrollList(OBJECT_NAMES[windowID][0]+"_NoteList", query=True, selectIndexedItem=True)
-    if currentIndex != None and len(currentIndex) > 0 and currentIndex[0] >= 1:
-        currentIndex = currentIndex[0]
-        cmds.textScrollList(OBJECT_NAMES[windowID][0]+"_NoteList", edit=True, removeIndexedItem=currentIndex)
-        noteList = cmds.getAttr(OBJECT_NAMES[windowID][2]+(".notetracks[%i]" % slotIndex)) or ""
-        notes = noteList.split(",")
-        del notes[currentIndex-1]
-        noteList = ",".join(notes)
-        cmds.setAttr(OBJECT_NAMES[windowID][2]+(".notetracks[%i]" % slotIndex), noteList, type='string')
-        SelectNote(windowID)
-
-def ClearNotes(windowID):
-    """
-    Clear ALL notetracks.
-    """
-    slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0]+"_SlotDropDown", query=True, select=True)
-    notes = cmds.textScrollList(OBJECT_NAMES[windowID][0]+"_NoteList", query=True, allItems=True)
-    if notes is None:
+    """Rename a notetrack entry."""
+    slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", query=True, select=True)
+    currentIndex = cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", query=True, selectIndexedItem=True)
+    if not currentIndex or currentIndex[0] < 1:
         return
-    for note in notes:
-        cmds.textScrollList(OBJECT_NAMES[windowID][0]+"_NoteList", edit=True, removeItem=note)
-    noteList = cmds.getAttr(OBJECT_NAMES[windowID][2]+(".notetracks[%i]" % slotIndex)) or ""
-    notetracks = noteList.split(",")
-    del notetracks
-    noteList = ""
-    cmds.setAttr(OBJECT_NAMES[windowID][2]+(".notetracks[%i]" % slotIndex), noteList, type='string')
+
+    if cmds.promptDialog(title="Rename NoteTrack", message="Enter new notetrack name:") != "Confirm":
+        return
+
+    userInput = cmds.promptDialog(query=True, text=True)
+    noteName = "".join([c for c in userInput if c.isalnum() or c == "_"]) \
+        .replace("sndnt", "sndnt#").replace("rmbnt", "rmbnt#")
+    if noteName == "":
+        MessageBox("Invalid note name")
+        return
+
+    currentIndex = currentIndex[0]
+    noteList = cmds.getAttr(OBJECT_NAMES[windowID][2] + (".notetracks[%i]" % slotIndex)) or ""
+    notes = noteList.split(",")
+    noteInfo = notes[currentIndex - 1].split(":")
+    frame = int(noteInfo[1])
+
+    # remove old note
+    cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", edit=True, removeIndexedItem=currentIndex)
+    del notes[currentIndex - 1]
+    noteList = ",".join(notes)
+
+    # re-add renamed note
+    noteList += "%s:%i," % (noteName, frame)
+    cmds.setAttr(OBJECT_NAMES[windowID][2] + (".notetracks[%i]" % slotIndex), noteList, type='string')
+    cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", edit=True, append=noteName)
     SelectNote(windowID)
+
+
+# -----------------------------------------------------------
+# Remove Note
+# -----------------------------------------------------------
+def RemoveNote(windowID):
+    """Remove selected note."""
+    slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", query=True, select=True)
+    currentIndex = cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", query=True, selectIndexedItem=True)
+    if not currentIndex or currentIndex[0] < 1:
+        return
+    idx = currentIndex[0]
+    cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", edit=True, removeIndexedItem=idx)
+    noteList = cmds.getAttr(OBJECT_NAMES[windowID][2] + (".notetracks[%i]" % slotIndex)) or ""
+    notes = noteList.split(",")
+    del notes[idx - 1]
+    noteList = ",".join(notes)
+    cmds.setAttr(OBJECT_NAMES[windowID][2] + (".notetracks[%i]" % slotIndex), noteList, type='string')
+    SelectNote(windowID)
+
+
+# -----------------------------------------------------------
+# Clear Notes (Safe)
+# -----------------------------------------------------------
+def ClearNotes(windowID):
+    """Safe universal clear for both SEAnim and CAST."""
+    try:
+        if not cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", exists=True):
+            print(f"[CoDMayaTools] Window {windowID} missing; skipping clear.")
+            return
+
+        slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", query=True, select=True)
+        attr_target = OBJECT_NAMES[windowID][2] + (".notetracks[%i]" % slotIndex)
+        if not cmds.objExists(OBJECT_NAMES[windowID][2]) or not cmds.attributeQuery("notetracks", node=OBJECT_NAMES[windowID][2], exists=True):
+            print(f"[CoDMayaTools] Missing notetrack attribute on {OBJECT_NAMES[windowID][2]}")
+            return
+
+        notes = cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", query=True, allItems=True)
+        if notes:
+            for note in list(set(notes)):
+                try:
+                    cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", edit=True, removeItem=note)
+                except RuntimeError:
+                    pass
+
+        cmds.setAttr(attr_target, "", type="string")
+        mode = "CAST" if USE_CAST else "SEAnim"
+
+    except Exception as e:
+        print(f"[CoDMayaTools] Failed to clear notetracks: {e}")
 
 def UpdateNoteFrame(windowID):
     """
@@ -3010,11 +3066,9 @@ def LogExport(text, isWarning = False):
             cmds.scrollField("ExportLog", edit = True, insertText = text)
 
 def AboutWindow():
-    result = cmds.confirmDialog(message="Call of Duty Tools for Maya, created by Aidan Shafran (with assistance from The Internet).\nMaintained by Ray1235 (Maciej Zaremba) & Scobalula\n\nThis script is under the GNU General Public License. You may modify or redistribute this script, however it comes with no warranty. Go to http://www.gnu.org/licenses/ for more details.\n\nVersion: %.2f" % FILE_VERSION, button=['OK', 'Visit Github Repo', 'CoD File Formats'], defaultButton='OK', title="About " + OBJECT_NAMES['menu'][1])
+    result = cmds.confirmDialog(message="Call of Duty Tools for Maya, created by Aidan Shafran (with assistance from The Internet).\nMaintained by Elfenliedtopfan5 Previously Maintained by Ray1235 (Maciej Zaremba) & Scobalula\n\nThis script is under the GNU General Public License. You may modify or redistribute this script, however it comes with no warranty. Go to http://www.gnu.org/licenses/ for more details.\n\nVersion: %.2f" % FILE_VERSION, button=['OK', 'Visit Github Repo'], defaultButton='OK', title="About " + OBJECT_NAMES['menu'][1])
     if result == "Visit Github Repo":
-        webbrowser.open("https://github.com/Ray1235/CoDMayaTools")
-    elif result == "CoD File Formats":
-        webbrowser.open("http://aidanshafran.com/codmayatools/codformats.html")
+        webbrowser.open("https://github.com/ManyAsset/CODMayaTools")
 
 def LegacyWindow():
     result = cmds.confirmDialog(message="""CoD1 mode exports models that are compatible with CoD1.
