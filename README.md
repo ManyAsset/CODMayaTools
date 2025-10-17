@@ -14,10 +14,9 @@ Animations export as `.xanim_export`
 Xcams export as `.xcam_export`  
 
 ## Features:
-* Cast Notetracks
 * Support for Black Ops 3 with Export2Bin/ExportX
 * Backwards compatibility with Call of Duty 1 (untested & xmodels only)
-* Read notetracks from SEAnims, Wraith, tanims, and old files
+* Read notetracks from Cast, SEAnims, Wraith, tanims, and old files
 * Ray's Camera Animation Toolkit included for camera animations
 * Export XCams for Black Ops 3
 * Cosmetic bones for use in Black Ops 3
