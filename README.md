@@ -22,7 +22,7 @@ Xcams export as `.xcam_export`
 * Cosmetic bones for use in Black Ops 3
 
 ## Requirements:
-* Call of Duty Maya Tools is a plugin for Autodesk's Maya tool and designed for [Autodesk Maya 2022](http://autodesk.com/maya) or later
+* Call of Duty Maya Tools is a plugin for Autodesk's Maya and designed for [Autodesk Maya 2022](http://autodesk.com/maya) or later
 
 ## Installation:
   Head this directory `Documents\maya\VERSION\scripts`, Drag and drop all files from zip. if you already have a `userSetup.mel`, open it and paste this `python("import CoDMayaTools");` then save!
