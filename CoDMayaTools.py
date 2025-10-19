@@ -2597,29 +2597,50 @@ def UpdateMultiplier(windowID):
     cmds.setAttr(OBJECT_NAMES[windowID][2]+(".multiplier[%i]" % slotIndex), fps)
 
 # ===========================================================
-# === UNIVERSAL NOTETRACK SYSTEM (SEANIM + CAST SUPPORT) SE ANIM WILL BE REMOVED ON 08/08/26 ====
+# === SMART UNIVERSAL NOTETRACK SYSTEM (CAST + SEAnim) ======
 # ===========================================================
 
-USE_CAST = False  # Global flag; toggle True when in CAST mode, False for SEAnim
 
-def set_use_cast(enabled):
-    """Manually toggle CAST/SEAnim mode."""
+USE_CAST = True  # Default to CAST mode unless SEAnim is explicitly detected
+
+def detect_notetrack_mode():
+    """
+    Auto-detect which notetrack system to use in the current scene.
+    Default: CAST
+    Fallback: SEAnim only if SENotes exists AND CastNotetracks does NOT exist.
+    """
     global USE_CAST
-    USE_CAST = bool(enabled)
-    print(f"[CoDMayaTools] Mode set to: {'CAST' if USE_CAST else 'SEAnim'}")
+
+    cast_exists = cmds.objExists("CastNotetracks")
+    se_exists = cmds.objExists("SENotes")
+
+    # --- Priority ---
+    if cast_exists:
+        USE_CAST = True
+        mode = "CAST"
+    elif se_exists:
+        USE_CAST = False
+        mode = "SEAnim"
+    else:
+        # Default to CAST mode (no legacy SENotes detected)
+        USE_CAST = True
+        mode = "CAST (default)"
+
+    print(f"[CoDMayaTools] Auto-detected notetrack mode: {mode}")
+    return USE_CAST
 
 
-# -----------------------------------------------------------
-# Internal node helper
-# -----------------------------------------------------------
 def __get_notetrack_node__():
-    """Return the correct node name for current mode."""
+    """Return correct node name based on what's actually in the scene."""
+    # Always check the scene live instead of trusting the flag alone
+    detect_notetrack_mode()
     return "CastNotetracks" if USE_CAST else "SENotes"
 
 
 def __get_notetracks__():
-    """Loads all the notetracks in the scene for either CAST or SEAnim."""
+    """Load or create the proper notetrack container."""
     node = __get_notetrack_node__()
+
     if not cmds.objExists(node):
         cmds.rename(cmds.spaceLocator(), node)
 
@@ -2658,23 +2679,71 @@ def AddNote(windowID):
     SelectNote(windowID)
 
 
+
+
+def safe_get_notetrack_attr(node, index):
+    """
+    Safely get or initialize a notetrack string attribute at index.
+    Prevents 'No object matches name' errors.
+    """
+    attr = f"{node}.notetracks[{index}]"
+
+    # If node or base attribute doesn't exist, skip
+    if not cmds.objExists(node):
+        print(f"[CoDMayaTools] ⚠️ Node {node} does not exist.")
+        return ""
+
+    if not cmds.attributeQuery("notetracks", node=node, exists=True):
+        print(f"[CoDMayaTools] ⚠️ Node {node} missing notetracks attribute.")
+        return ""
+
+    # Try reading — if the specific element index doesn’t exist, create it
+    try:
+        return cmds.getAttr(attr)
+    except Exception:
+        try:
+            # Initialize that slot manually
+            cmds.setAttr(attr, "", type="string")
+            return ""
+        except Exception:
+            # Sometimes Maya needs array element creation through addAttr
+            try:
+                cmds.addAttr(node, longName="notetracks", dataType="string", multi=True)
+                cmds.setAttr(attr, "", type="string")
+                print(f"[CoDMayaTools] 🧩 Created missing notetracks[{index}] on {node}")
+                return ""
+            except Exception as e:
+                print(f"[CoDMayaTools] ⚠️ Failed to initialize notetracks[{index}]: {e}")
+                return ""
+
+
+
+
+
+
+
 # -----------------------------------------------------------
 # Read Notetracks
 # -----------------------------------------------------------
 def ReadNotetracks(windowID):
     """Read notetracks for either CAST or SEAnim safely."""
+    detect_notetrack_mode()
     try:
         slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", query=True, select=True)
+        node_name = OBJECT_NAMES[windowID][2]
+
+        # ✅ Safe getter prevents crash
+        noteList = safe_get_notetrack_attr(node_name, slotIndex)
+
         existingItems = cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", query=True, allItems=True)
-        noteList = cmds.getAttr(OBJECT_NAMES[windowID][2] + (".notetracks[%i]" % slotIndex)) or ""
         notetracks = __get_notetracks__()
         write_note_type = QueryToggableOption('PrefixNoteType')
 
-        # Clear existing notes first
+        # Clear old ones
         try:
             ClearNotes(windowID)
         except Exception as e:
-            print(f"[CoDMayaTools] Could not clear notes before read: {e}")
+            print(f"[CoDMayaTools] ⚠️ Could not clear notes before read: {e}")
 
         appended_notes = []
 
@@ -2682,7 +2751,6 @@ def ReadNotetracks(windowID):
             if note in ("end", "loop_end"):
                 continue
 
-            # Add prefix if enabled
             if write_note_type and "nt#" not in note:
                 note_type = "sndnt"
                 notesplit = note.split("_")
@@ -2693,8 +2761,7 @@ def ReadNotetracks(windowID):
 
             for frame in frames:
                 noteList += "%s:%i," % (note, frame)
-                cmds.setAttr(OBJECT_NAMES[windowID][2] + (".notetracks[%i]" % slotIndex),
-                             noteList, type='string')
+                cmds.setAttr(f"{node_name}.notetracks[{slotIndex}]", noteList, type='string')
                 if note not in appended_notes:
                     cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList",
                                         edit=True, append=note)
@@ -2706,10 +2773,10 @@ def ReadNotetracks(windowID):
             except Exception:
                 pass
 
-        mode = "CAST" if USE_CAST else "SEAnim"
+        print(f"[CoDMayaTools] ✅ Loaded {len(appended_notes)} notetracks successfully.")
 
     except Exception as e:
-        print(f"[CoDMayaTools] Failed to read notetracks: {e}")
+        print(f"[CoDMayaTools] ⚠️ Failed to read notetracks: {e}")
 
 
 # -----------------------------------------------------------
@@ -2773,18 +2840,39 @@ def RemoveNote(windowID):
 # Clear Notes (Safe)
 # -----------------------------------------------------------
 def ClearNotes(windowID):
-    """Safe universal clear for both SEAnim and CAST."""
+    """
+    Safe universal clear for both CAST and SEAnim.
+    Avoids missing notetrack attribute errors.
+    """
     try:
+        detect_notetrack_mode()
+
+        # Check window slot menu
         if not cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", exists=True):
-            print(f"[CoDMayaTools] Window {windowID} missing; skipping clear.")
+            print(f"[CoDMayaTools] ⚠️ Window {windowID} missing; skipping ClearNotes.")
             return
 
         slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", query=True, select=True)
-        attr_target = OBJECT_NAMES[windowID][2] + (".notetracks[%i]" % slotIndex)
-        if not cmds.objExists(OBJECT_NAMES[windowID][2]) or not cmds.attributeQuery("notetracks", node=OBJECT_NAMES[windowID][2], exists=True):
-            print(f"[CoDMayaTools] Missing notetrack attribute on {OBJECT_NAMES[windowID][2]}")
+        node_name = OBJECT_NAMES[windowID][2]
+        attr_target = f"{node_name}.notetracks[{slotIndex}]"
+
+        # --- Validate attribute existence ---
+        if not cmds.objExists(node_name):
+            print(f"[CoDMayaTools] ⚠️ Node {node_name} does not exist, skipping clear.")
             return
 
+        if not cmds.attributeQuery("notetracks", node=node_name, exists=True):
+            print(f"[CoDMayaTools] ⚠️ Node {node_name} has no 'notetracks' attribute, skipping clear.")
+            return
+
+        # --- Check if specific index exists before getAttr/setAttr ---
+        try:
+            cmds.getAttr(attr_target)
+        except Exception:
+            print(f"[CoDMayaTools] ⚠️ Attribute {attr_target} not initialized, skipping reset.")
+            return
+
+        # --- Clear text scroll list (UI) ---
         notes = cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", query=True, allItems=True)
         if notes:
             for note in list(set(notes)):
@@ -2793,11 +2881,13 @@ def ClearNotes(windowID):
                 except RuntimeError:
                     pass
 
+        # --- Reset the notetrack attribute ---
         cmds.setAttr(attr_target, "", type="string")
-        mode = "CAST" if USE_CAST else "SEAnim"
+
+        print(f"[CoDMayaTools] ✅ Cleared notetracks safely for {node_name} slot {slotIndex}.")
 
     except Exception as e:
-        print(f"[CoDMayaTools] Failed to clear notetracks: {e}")
+        print(f"[CoDMayaTools] ⚠️ Failed to clear notetracks: {e}")
 
 def UpdateNoteFrame(windowID):
     """
