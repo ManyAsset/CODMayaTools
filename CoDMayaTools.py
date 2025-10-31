@@ -65,7 +65,7 @@ WarningsDuringExport = 0 # Number of warnings shown during current export
 CM_TO_INCH = 0.3937007874015748031496062992126 # 1cm = 50/127in
 M_PI = 3.14159265359
 FILE_VERSION = 2.91
-VERSION_CHECK_URL = "https://raw.githubusercontent.com/Ray1235/CoDMayaTools/master/version"
+# VERSION_CHECK_URL = "https://raw.githubusercontent.com/Ray1235/CoDMayaTools/master/version"
  # Registry path for global data storage
 GLOBAL_STORAGE_REG_KEY = (reg.HKEY_CURRENT_USER, "Software\\CoDMayaTools")
 #                name     :         control code name,                control friendly name,    data storage node name,    refresh function,        export function
@@ -115,69 +115,17 @@ def CreateMenu():
                         label=OBJECT_NAMES["menu"][1],tearOff=True)
 
     # Export tools
-    cmds.menuItem(label=OBJECT_NAMES['xmodel'][1]+"...",
+    cmds.menuItem(label=OBJECT_NAMES['xmodel'][1],
                     command="CoDMayaTools.ShowWindow('xmodel')")
-    cmds.menuItem(label=OBJECT_NAMES['xanim'][1]+"...",
+    cmds.menuItem(label=OBJECT_NAMES['xanim'][1],
                     command="CoDMayaTools.ShowWindow('xanim')")
-    cmds.menuItem(label=OBJECT_NAMES['xcam'][1]+"...",
+    cmds.menuItem(label=OBJECT_NAMES['xcam'][1],
                     command="CoDMayaTools.ShowWindow('xcam')")
-    # Import tools
     cmds.menuItem(divider=True)
-    cmds.menuItem(label="Import XModel...",
-                    subMenu=True)
-    cmds.menuItem(label="...from CoD7",
-                    command="CoDMayaTools.ImportXModel('CoD7')")
-    cmds.menuItem(label="...from CoD5",
-                    command="CoDMayaTools.ImportXModel('CoD5')")
-    cmds.menuItem(label="...from CoD4",
-                    command="CoDMayaTools.ImportXModel('CoD4')")
-    cmds.setParent(menu,
-                    menu=True)
-    cmds.menuItem(divider=True)
-    # Utilities Menu
-    util_menu = cmds.menuItem(label="Utilities",
-                                subMenu=True)
-    cmds.menuItem(divider=True)
-    # Rays Animation Toolkit
-    cmds.menuItem(label="Ray's Camera Animation Toolkit",
-                    subMenu=True)
-    cmds.menuItem(label="Mark as camera",
-                    command="CoDMayaTools.setObjectAlias('camera')")
-    cmds.menuItem(label="Mark as weapon",
-                    command="CoDMayaTools.setObjectAlias('weapon')")
-    cmds.menuItem(divider=True)
-    cmds.menuItem(label="Set Camera Animation Strength",
-                    command=lambda x:ShowSetStrengthWindow())
-    cmds.menuItem(divider=True)
-    cmds.menuItem(label="Generate camera animation",
-                    command="CoDMayaTools.GenerateCamAnim()")
-    cmds.menuItem(divider=True)
-    cmds.menuItem(label="Remove camera animation in current range",
-                    command=RemoveCameraKeys)
-    cmds.menuItem(label="Reset camera",
-                    command=RemoveCameraAnimData)
-    cmds.setParent(util_menu,
-                    menu=True)
     # Attach Weapon To Rig
-    cmds.menuItem(divider=True)
     cmds.menuItem(label="Attach Weapon to Rig",  command=lambda x:WeaponBinder())
-    # IWIxDDS
     cmds.menuItem(divider=True)
-    cmds.menuItem(label="Convert IWI to DDS",
-                    command=lambda x:IWIToDDSUser())
-    # Viewmodel Tools
-    cmds.menuItem(label="ViewModel Tools", subMenu=True)
-    cmds.menuItem(label="Create New Gunsleeve Maya File",
-                    command=lambda x:CreateNewGunsleeveMayaFile())
-    cmds.menuItem(label="Create New ViewModel Rig File",
-                    command=lambda x:CreateNewViewmodelRigFile())
-    cmds.menuItem(label="Switch Gun in Current Rig File",
-                    command=lambda x:SwitchGunInCurrentRigFile())
-    cmds.setParent(menu, menu=True)
-    # Settings
-    cmds.menuItem(divider=True)
-    settings_menu = cmds.menuItem(label="Settings", subMenu=True)
-    # Game/Game Folder Settings
+    # Game Folder Settings
     cmds.menuItem(label="Game Settings", subMenu=True)
     cmds.menuItem(label="Set CoD 1 Root Folder",  command=lambda x:SetRootFolder(None, 'CoD1'))
     cmds.menuItem(label="Set CoD 2 Root Folder",  command=lambda x:SetRootFolder(None, 'CoD2'))
@@ -195,11 +143,14 @@ def CreateMenu():
     cmds.menuItem( label='CoD WaW', radioButton=games["CoD5"], command=lambda x:SetCurrentGame("CoD5"))
     cmds.menuItem( label='CoD Bo1', radioButton=games["CoD7"], command=lambda x:SetCurrentGame("CoD7"))
     cmds.menuItem( label='CoD Bo3', radioButton=games["CoD12"] , command=lambda x:SetCurrentGame("CoD12"))
+    cmds.setParent(menu, menu=True)
+    # Settings
+    settings_menu = cmds.menuItem(label="Settings", subMenu=True)
     cmds.setParent(settings_menu, menu=True)
     # ExportX/Export2Bin Options (Deprecated)
-    if(USE_EXPORT_X):
-        cmds.menuItem("E2B", label='Use ExportX', checkBox=QueryToggableOption('E2B'), command=lambda x:SetToggableOption('E2B') )
-        cmds.menuItem(label="Set Path to ExportX", command=lambda x:SetExport2Bin())
+    # if(USE_EXPORT_X):
+    #    cmds.menuItem("E2B", label='Use ExportX', checkBox=QueryToggableOption('E2B'), command=lambda x:SetToggableOption('E2B') )
+    #    cmds.menuItem(label="Set Path to ExportX", command=lambda x:SetExport2Bin())
     # Misc. Options.
     cmds.menuItem(divider=True)
     cmds.menuItem("AutomaticRename", label='Automatically rename joints (J_GUN, etc.)', checkBox=QueryToggableOption('AutomaticRename'), command=lambda x:SetToggableOption('AutomaticRename') )
@@ -894,20 +845,6 @@ def IWIToDDS(inIWIPath):
             # outf.write(inf.read(header[9] - header[10]))
 
     return True
-
-def IWIToDDSUser():
-    codRootPath = GetRootFolder() # Only call this once, because it might create a dialog box
-    files = cmds.fileDialog2(fileMode=4, fileFilter="IWI Images (*.iwi)", caption="Select IWI file", startingDirectory=os.path.join(codRootPath, "raw/images/"))
-    if files == None or len(files) == 0 or files[0].strip() == "":
-        return
-    success = True
-    for file in files:
-        if not IWIToDDS(file):
-            success = False
-
-    if not success:
-        MessageBox("One or more of the IWIs failed to convert. See the Script Editor output for more information.")
-
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------------                
@@ -1924,162 +1861,6 @@ def ExportXCam(filePath):
     cmds.refresh()
 
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# ------------------------------------------------------------------------ Viewmodel Tools -------------------------------------------------------------------------
-# ------------------------------------------------------------------------------------------------------------------------------------------------------------------
-def DoesObjectExist(name, type):
-    if not cmds.objExists(name):
-        MessageBox("Error: Missing %s '%s'" % (type, name))
-        return False
-
-    return True
-
-def CreateNewGunsleeveMayaFile():
-    global WarningsDuringExport
-
-    # Save reminder
-    if not SaveReminder(False):
-        return
-
-    # Get paths
-    filePath = cmds.file(query=True, sceneName=True)
-    split1 = os.path.split(filePath)
-    split2 = os.path.splitext(split1[1])
-    exportPath = os.path.join(split1[0], "gunsleeves_" + split2[0] + ".xmodel_export")
-
-    # Create a new file and import models
-    cmds.file(force=True, newFile=True)
-    cmds.file(os.path.join(GetRootFolder(), "bin/maya/rigs/viewmodel/ViewModel_DefMesh.mb"), i=True, type="mayaBinary")
-    cmds.file(filePath, i=True, type="mayaBinary")
-
-    # Check to make sure objects exist
-    if not DoesObjectExist("J_Gun", "joint"): return
-    if not DoesObjectExist("tag_weapon", "tag"): return
-    if not DoesObjectExist("GunExport", "object set"): return
-    if not DoesObjectExist("DefViewSkeleton", "object set"): return
-    if not DoesObjectExist("tag_view", "tag"): return
-    if not cmds.objExists("viewmodelSleeves_OpForce") and not cmds.objExists("viewmodelSleeves_Marines"):
-        MessageBox("Error: Missing viewsleeves 'viewmodelSleeves_OpForce' or 'viewmodelSleeves_Marines'")
-        return
-
-    # Attach gun to rig
-    cmds.select("J_Gun", replace=True)
-    cmds.select("tag_weapon", add=True)
-    cmds.parent()
-
-    # Select things to export
-    cmds.select("GunExport", replace=True)
-    cmds.select("DefViewSkeleton", toggle=True)
-    cmds.select("tag_view", toggle=True)
-    if cmds.objExists("viewmodelSleeves_OpForce"):
-        cmds.select("viewmodelSleeves_OpForce", toggle=True, hierarchy=True)
-    else:
-        cmds.select("viewmodelSleeves_Marines", toggle=True, hierarchy=True)
-
-    # Export
-    if cmds.control("w"+OBJECT_NAMES['progress'][0], exists=True):
-        cmds.deleteUI("w"+OBJECT_NAMES['progress'][0])
-    progressWindow = cmds.window("w"+OBJECT_NAMES['progress'][0], title=OBJECT_NAMES['progress'][1], width=302, height=22, sizable=False)
-    cmds.columnLayout()
-    progressControl = cmds.progressBar(OBJECT_NAMES['progress'][0], width=300)
-    cmds.showWindow(progressWindow)
-    cmds.refresh() # Force the progress bar to be drawn
-
-    # Export
-    WarningsDuringExport = 0
-    response = None
-    try:
-        response = ExportXModel(exportPath)
-    except Exception as e:
-        response = "An unhandled error occurred during export:\n\n" + traceback.format_exc()
-
-    # Delete progress bar
-    cmds.deleteUI(progressWindow, window=True)
-
-    # Handle response
-    if type(response) == str:
-        MessageBox(response)
-    elif WarningsDuringExport > 0:
-        MessageBox("Warnings occurred during export. Check the script editor output for more details.")
-
-    if type(response) != str:
-        MessageBox("Export saved to\n\n" + os.path.normpath(exportPath))
-
-def CreateNewViewmodelRigFile():
-    # Save reminder
-    if not SaveReminder(False):
-        return
-
-    # Get path
-    filePath = cmds.file(query=True, sceneName=True)
-
-    # Create a new file and import models
-    cmds.file(force=True, newFile=True)
-    cmds.file(os.path.join(GetRootFolder(), "bin/maya/rigs/viewmodel/ViewModel_Rig.mb"), reference=True, type="mayaBinary", namespace="rig", options="v=0")
-    cmds.file(filePath, reference=True, type="mayaBinary", namespace="VM_Gun")
-
-    # Check to make sure objects exist
-    if not DoesObjectExist("VM_Gun:J_Gun", "joint"): return
-    if not cmds.objExists("rig:DefMesh:tag_weapon") and not cmds.objExists("ConRig:DefMesh:tag_weapon"):
-        MessageBox("Error: Missing viewsleeves 'rig:DefMesh:tag_weapon' or 'ConRig:DefMesh:tag_weapon'")
-        return
-
-    # Connect gun to rig
-    if cmds.objExists("rig:DefMesh:tag_weapon"):
-        cmds.select("rig:DefMesh:tag_weapon", replace=True)
-    else:
-        cmds.select("ConRig:DefMesh:tag_weapon", replace=True)
-
-    cmds.select("VM_Gun:J_Gun", toggle=True)
-    cmds.parentConstraint(weight=1, name="VMParentConstraint")
-    cmds.select(clear=True)
-
-def SwitchGunInCurrentRigFile():
-    # Save reminder
-    if not SaveReminder():
-        return
-
-    # Make sure the rig is correct
-    if not cmds.objExists("rig:DefMesh:tag_weapon") and not cmds.objExists("ConRig:DefMesh:tag_weapon"):
-        MessageBox("Error: Missing rig:DefMesh:tag_weapon' or 'ConRig:DefMesh:tag_weapon'")
-        return
-
-    if not DoesObjectExist("VM_Gun:J_Gun", "joint"): return
-
-    # Prompt user to select a new gun file
-    gunPath = cmds.fileDialog2(fileMode=1, fileFilter="Maya Files (*.ma *.mb)", caption="Select a New Gun File", startingDirectory=GetRootFolder())
-    if gunPath == None or len(gunPath) == 0 or gunPath[0].strip() == "":
-        return
-    gunPath = gunPath[0].strip()
-
-    # Delete the constraint
-    cmds.delete("VMParentConstraint")
-
-    # Delete any hand attachments
-    if cmds.objExists("rig:Hand_Extra_RI_GRP.Parent"):
-        parentRI = cmds.getAttr("rig:Hand_Extra_RI_GRP.Parent")
-        if parentRI != "":
-            cmds.delete(parentRI)
-    if cmds.objExists("rig:Hand_Extra_LE_GRP.Parent"):
-        parentLE = cmds.getAttr("rig:Hand_Extra_LE_GRP.Parent")
-        if parentLE != "":
-            cmds.delete(parentLE)
-
-    # Switch guns
-    cmds.file(gunPath, loadReference="VM_GunRN");
-
-    # Connect gun to rig
-    if cmds.objExists("rig:DefMesh:tag_weapon"):
-        cmds.select("rig:DefMesh:tag_weapon", replace=True)
-    else:
-        cmds.select("ConRig:DefMesh:tag_weapon", replace=True)
-
-    cmds.select("VM_Gun:J_Gun", toggle=True)
-    cmds.parentConstraint(weight=1, name="VMParentConstraint")
-    cmds.select(clear=True)
-
-
-
-# ------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # ---------------------------------------------------------------------- XModel Export Window ----------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------------        
 def CreateXModelWindow():
@@ -2726,31 +2507,89 @@ def safe_get_notetrack_attr(node, index):
 # Read Notetracks
 # -----------------------------------------------------------
 def ReadNotetracks(windowID):
-    """Read notetracks for either CAST or SEAnim safely."""
-    detect_notetrack_mode()
+    """
+    Universal notetrack reader for CAST + SEAnim.
+    Automatically corrects CAST seconds → frames conversion
+    caused by importNotificationTrackNode() in castplugin.
+    Detects whether values are in seconds or frames, per note.
+    """
     try:
-        slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", query=True, select=True)
+        use_cast = detect_notetrack_mode()
+        slotIndex = cmds.optionMenu(
+            OBJECT_NAMES[windowID][0] + "_SlotDropDown", query=True, select=True)
         node_name = OBJECT_NAMES[windowID][2]
+        attr_target = f"{node_name}.notetracks[{slotIndex}]"
 
-        # ✅ Safe getter prevents crash
-        noteList = safe_get_notetrack_attr(node_name, slotIndex)
+        # Ensure attribute exists
+        safe_get_notetrack_attr(node_name, slotIndex)
 
-        existingItems = cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", query=True, allItems=True)
-        notetracks = __get_notetracks__()
+        # Clear any old UI content
+        ClearNotes(windowID)
+
+        # Load dictionary from node (CAST or SEAnim)
+        notetracks = __get_notetracks__() or {}
         write_note_type = QueryToggableOption('PrefixNoteType')
 
-        # Clear old ones
-        try:
-            ClearNotes(windowID)
-        except Exception as e:
-            print(f"[CoDMayaTools] ⚠️ Could not clear notes before read: {e}")
+        # Detect scene FPS
+        scene_unit = cmds.currentUnit(query=True, time=True).lower()
+        fps_map = {
+            "game": 15, "film": 24, "pal": 25, "ntsc": 30,
+            "show": 48, "palf": 50, "ntscf": 60
+        }
+        fps = fps_map.get(scene_unit, 30)
+        total_frames = int(cmds.playbackOptions(maxTime=True, query=True))
 
-        appended_notes = []
+        frame_pairs = []
 
+        # --- Process all notes individually ---
         for note, frames in notetracks.items():
             if note in ("end", "loop_end"):
                 continue
 
+            # --- Detect per-note unit (seconds or frames) ---
+            if use_cast:
+                note_max_val = max([float(x) for x in frames] or [0])
+                note_is_seconds = note_max_val < (total_frames / fps) * 2.0
+                print(f"[CoDMayaTools] CAST note '{note}': max_val={note_max_val}, "
+                      f"total_frames={total_frames}, fps={fps}, seconds_mode={note_is_seconds}")
+            else:
+                note_is_seconds = False
+
+            # --- Process each frame value ---
+            for f in frames:
+                try:
+                    frame_val = float(f)
+                except Exception:
+                    continue
+
+                # ✅ Convert seconds → frames only if CAST and detected as seconds
+                if use_cast and note_is_seconds:
+                    frame_val *= fps
+
+                # --- Normalize CAST note range if needed ---
+            if use_cast:
+                try:
+                    anim_min = cmds.playbackOptions(minTime=True, query=True)
+                    anim_max = cmds.playbackOptions(maxTime=True, query=True)
+                    scene_length = anim_max - anim_min
+
+                    # Detect if CAST data is normalized to 0–1 (or 0–2 for safety)
+                    if note_max_val > 0 and note_max_val <= 2.5:
+                        scale_factor = total_frames / note_max_val
+                        frame_val *= scale_factor
+                        print(f"[CoDMayaTools] CAST normalization (0–1 range) applied: {note} scale={scale_factor:.3f}")
+                except Exception as norm_ex:
+                    print(f"[CoDMayaTools] ⚠️ CAST normalization skipped for {note}: {norm_ex}")
+
+            frame_pairs.append((int(round(frame_val)), note))
+
+        # --- Sort by frame order ---
+        frame_pairs.sort(key=lambda x: x[0])
+
+        # --- Build notetrack list string ---
+        noteList = ""
+        appended_notes = []
+        for frame, note in frame_pairs:
             if write_note_type and "nt#" not in note:
                 note_type = "sndnt"
                 notesplit = note.split("_")
@@ -2759,81 +2598,162 @@ def ReadNotetracks(windowID):
                     note = note.replace("viewmodel", "reload")
                 note = "#".join((note_type, note))
 
-            for frame in frames:
-                noteList += "%s:%i," % (note, frame)
-                cmds.setAttr(f"{node_name}.notetracks[{slotIndex}]", noteList, type='string')
-                if note not in appended_notes:
-                    cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList",
-                                        edit=True, append=note)
-                    appended_notes.append(note)
+            noteList += f"{note}:{frame},"
+            if note not in appended_notes:
+                cmds.textScrollList(
+                    OBJECT_NAMES[windowID][0] + "_NoteList",
+                    edit=True, append=note
+                )
+                appended_notes.append(note)
 
+        # --- Write final list back to node ---
+        cmds.setAttr(attr_target, noteList, type="string")
+
+        # --- Auto-select first note in UI ---
         if appended_notes:
             try:
                 SelectNote(windowID)
             except Exception:
                 pass
 
-        print(f"[CoDMayaTools] ✅ Loaded {len(appended_notes)} notetracks successfully.")
+        print(f"[CoDMayaTools] ✅ Loaded {len(appended_notes)} notetracks ({len(frame_pairs)} frames total).")
 
     except Exception as e:
         print(f"[CoDMayaTools] ⚠️ Failed to read notetracks: {e}")
+
+
+
+
+
+def PrintAllNotetracks(windowID):
+    """
+    Debug utility: prints all note/frame pairs from the current slot to the Script Editor.
+    """
+    try:
+        slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", query=True, select=True)
+        node_name = OBJECT_NAMES[windowID][2]
+        attr_target = f"{node_name}.notetracks[{slotIndex}]"
+
+        if not cmds.objExists(node_name):
+            print(f"[CoDMayaTools] ⚠️ Node '{node_name}' does not exist.")
+            return
+
+        noteList = cmds.getAttr(attr_target)
+        if not noteList:
+            print(f"[CoDMayaTools] (empty) No notetracks found on {attr_target}")
+            return
+
+        notes = [n for n in noteList.split(",") if n.strip()]
+        print("═══════════════════════════════════════")
+        print(f"📜 Notetracks for: {node_name}  (slot {slotIndex})")
+        print("───────────────────────────────────────")
+        for n in notes:
+            try:
+                name, frame = n.split(":")
+                print(f"FRAME {frame:>5}  →  {name}")
+            except Exception:
+                print(f"(Invalid entry) {n}")
+        print("═══════════════════════════════════════")
+
+    except Exception as e:
+        print(f"[CoDMayaTools] ⚠️ Failed to print notetracks: {e}")
+
+
+
 
 
 # -----------------------------------------------------------
 # Rename Note
 # -----------------------------------------------------------
 def RenameNotes(windowID):
-    """Rename a notetrack entry."""
-    slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", query=True, select=True)
-    currentIndex = cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", query=True, selectIndexedItem=True)
-    if not currentIndex or currentIndex[0] < 1:
-        return
+    """Universal notetrack rename for CAST + SEAnim modes."""
+    try:
+        slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", query=True, select=True)
+        node_name = OBJECT_NAMES[windowID][2]
+        note_attr = f"{node_name}.notetracks[{slotIndex}]"
 
-    if cmds.promptDialog(title="Rename NoteTrack", message="Enter new notetrack name:") != "Confirm":
-        return
+        currentIndex = cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", query=True, selectIndexedItem=True)
+        if not currentIndex or currentIndex[0] < 1:
+            MessageBox("No notetrack selected.")
+            return
+        currentIndex = currentIndex[0]
 
-    userInput = cmds.promptDialog(query=True, text=True)
-    noteName = "".join([c for c in userInput if c.isalnum() or c == "_"]) \
-        .replace("sndnt", "sndnt#").replace("rmbnt", "rmbnt#")
-    if noteName == "":
-        MessageBox("Invalid note name")
-        return
+        if cmds.promptDialog(title="Rename NoteTrack", message="Enter new notetrack name:") != "Confirm":
+            return
 
-    currentIndex = currentIndex[0]
-    noteList = cmds.getAttr(OBJECT_NAMES[windowID][2] + (".notetracks[%i]" % slotIndex)) or ""
-    notes = noteList.split(",")
-    noteInfo = notes[currentIndex - 1].split(":")
-    frame = int(noteInfo[1])
+        userInput = cmds.promptDialog(query=True, text=True)
+        noteName = "".join([c for c in userInput if c.isalnum() or c == "_"]) \
+            .replace("sndnt", "sndnt#").replace("rmbnt", "rmbnt#")
 
-    # remove old note
-    cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", edit=True, removeIndexedItem=currentIndex)
-    del notes[currentIndex - 1]
-    noteList = ",".join(notes)
+        if not noteName:
+            MessageBox("Invalid note name")
+            return
 
-    # re-add renamed note
-    noteList += "%s:%i," % (noteName, frame)
-    cmds.setAttr(OBJECT_NAMES[windowID][2] + (".notetracks[%i]" % slotIndex), noteList, type='string')
-    cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", edit=True, append=noteName)
-    SelectNote(windowID)
+        # --- Load and parse the notetrack string ---
+        noteList = safe_get_notetrack_attr(node_name, slotIndex)
+        if not noteList:
+            return
+        notes = [n for n in noteList.split(",") if n.strip()]
+        if currentIndex - 1 >= len(notes):
+            return
+
+        old_note, frame = notes[currentIndex - 1].split(":")
+        notes[currentIndex - 1] = f"{noteName}:{frame}"
+
+        # --- Write back safely ---
+        noteList = ",".join(notes) + ","
+        cmds.setAttr(note_attr, noteList, type='string')
+
+        # --- Update UI ---
+        cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", edit=True, removeIndexedItem=currentIndex)
+        cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", edit=True, append=noteName)
+        SelectNote(windowID)
+
+        print(f"[CoDMayaTools] ✏️ Renamed notetrack '{old_note}' → '{noteName}' (frame {frame}).")
+
+    except Exception as e:
+        print(f"[CoDMayaTools] ⚠️ Failed to rename notetrack: {e}")
+
 
 
 # -----------------------------------------------------------
 # Remove Note
 # -----------------------------------------------------------
 def RemoveNote(windowID):
-    """Remove selected note."""
-    slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", query=True, select=True)
-    currentIndex = cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", query=True, selectIndexedItem=True)
-    if not currentIndex or currentIndex[0] < 1:
-        return
-    idx = currentIndex[0]
-    cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", edit=True, removeIndexedItem=idx)
-    noteList = cmds.getAttr(OBJECT_NAMES[windowID][2] + (".notetracks[%i]" % slotIndex)) or ""
-    notes = noteList.split(",")
-    del notes[idx - 1]
-    noteList = ",".join(notes)
-    cmds.setAttr(OBJECT_NAMES[windowID][2] + (".notetracks[%i]" % slotIndex), noteList, type='string')
-    SelectNote(windowID)
+    """Universal notetrack remover for CAST + SEAnim modes."""
+    try:
+        slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", query=True, select=True)
+        node_name = OBJECT_NAMES[windowID][2]
+        note_attr = f"{node_name}.notetracks[{slotIndex}]"
+
+        currentIndex = cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", query=True, selectIndexedItem=True)
+        if not currentIndex or currentIndex[0] < 1:
+            MessageBox("No notetrack selected.")
+            return
+        currentIndex = currentIndex[0]
+
+        # --- Load and parse ---
+        noteList = safe_get_notetrack_attr(node_name, slotIndex)
+        notes = [n for n in noteList.split(",") if n.strip()]
+        if currentIndex - 1 >= len(notes):
+            return
+
+        removed_note = notes[currentIndex - 1]
+        del notes[currentIndex - 1]
+
+        # --- Write back ---
+        new_noteList = ",".join(notes) + ("," if notes else "")
+        cmds.setAttr(note_attr, new_noteList, type='string')
+
+        # --- Update UI ---
+        cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", edit=True, removeIndexedItem=currentIndex)
+        SelectNote(windowID)
+
+        print(f"[CoDMayaTools] 🗑️ Removed notetrack '{removed_note}' successfully.")
+
+    except Exception as e:
+        print(f"[CoDMayaTools] ⚠️ Failed to remove notetrack: {e}")
+
 
 
 # -----------------------------------------------------------
@@ -2841,53 +2761,111 @@ def RemoveNote(windowID):
 # -----------------------------------------------------------
 def ClearNotes(windowID):
     """
-    Safe universal clear for both CAST and SEAnim.
-    Avoids missing notetrack attribute errors.
+    Universal clear function for CAST and SEAnim notetrack systems.
+    Safely resets the active notetrack slot without causing attribute errors.
     """
     try:
+        # --- Detect which mode (CAST or SEAnim) ---
         detect_notetrack_mode()
 
-        # Check window slot menu
+        # --- Validate UI controls ---
         if not cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", exists=True):
-            print(f"[CoDMayaTools] ⚠️ Window {windowID} missing; skipping ClearNotes.")
+            print(f"[CoDMayaTools] ⚠️ Cannot clear notes: missing slot dropdown for {windowID}")
             return
 
         slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", query=True, select=True)
         node_name = OBJECT_NAMES[windowID][2]
         attr_target = f"{node_name}.notetracks[{slotIndex}]"
 
-        # --- Validate attribute existence ---
+        # --- Ensure node exists ---
         if not cmds.objExists(node_name):
-            print(f"[CoDMayaTools] ⚠️ Node {node_name} does not exist, skipping clear.")
+            print(f"[CoDMayaTools] ⚠️ Node '{node_name}' does not exist, skipping clear.")
             return
 
+        # --- Ensure attribute exists and initialize if missing ---
         if not cmds.attributeQuery("notetracks", node=node_name, exists=True):
-            print(f"[CoDMayaTools] ⚠️ Node {node_name} has no 'notetracks' attribute, skipping clear.")
-            return
+            cmds.addAttr(node_name, longName="notetracks", dataType="string", multi=True)
+            print(f"[CoDMayaTools] 🧩 Created missing 'notetracks' attribute on {node_name}.")
 
-        # --- Check if specific index exists before getAttr/setAttr ---
-        try:
-            cmds.getAttr(attr_target)
-        except Exception:
-            print(f"[CoDMayaTools] ⚠️ Attribute {attr_target} not initialized, skipping reset.")
-            return
+        # --- Ensure this index slot exists ---
+        safe_get_notetrack_attr(node_name, slotIndex)
 
-        # --- Clear text scroll list (UI) ---
-        notes = cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", query=True, allItems=True)
-        if notes:
-            for note in list(set(notes)):
-                try:
-                    cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", edit=True, removeItem=note)
-                except RuntimeError:
-                    pass
-
-        # --- Reset the notetrack attribute ---
+        # --- Clear the actual attribute ---
         cmds.setAttr(attr_target, "", type="string")
 
-        print(f"[CoDMayaTools] ✅ Cleared notetracks safely for {node_name} slot {slotIndex}.")
+        # --- Clear UI list safely ---
+        note_list_ui = OBJECT_NAMES[windowID][0] + "_NoteList"
+        if cmds.textScrollList(note_list_ui, exists=True):
+            items = cmds.textScrollList(note_list_ui, query=True, allItems=True)
+            if items:
+                for note in list(items):
+                    try:
+                        cmds.textScrollList(note_list_ui, edit=True, removeItem=note)
+                    except RuntimeError:
+                        pass
+
+        # --- Update frame field and selection ---
+        if cmds.intField(OBJECT_NAMES[windowID][0] + "_NoteFrameField", exists=True):
+            cmds.intField(OBJECT_NAMES[windowID][0] + "_NoteFrameField", edit=True, value=0)
+
+        print(f"[CoDMayaTools] ✅ Cleared notetracks safely for {node_name} (slot {slotIndex}).")
 
     except Exception as e:
         print(f"[CoDMayaTools] ⚠️ Failed to clear notetracks: {e}")
+
+
+# -----------------------------------------------------------
+# Clear + Remove CastNotetracks (Full Reset)
+# -----------------------------------------------------------
+def ClearAndRemoveCastNotetracks(windowID):
+    """
+    Completely removes the CastNotetracks node and its JSON data.
+    Works like ClearNotes(windowID) but performs a full CAST cleanup.
+    """
+    try:
+        detect_notetrack_mode()
+        cast_node = "CastNotetracks"
+
+        # --- Validate that CAST mode is active ---
+        if not cmds.objExists(cast_node):
+            print(f"[CoDMayaTools] ⚠️ No CastNotetracks node found for {windowID} window — nothing to remove.")
+            return
+
+        # --- Remove the 'Notetracks' JSON attribute ---
+        if cmds.attributeQuery("Notetracks", node=cast_node, exists=True):
+            cmds.deleteAttr(f"{cast_node}.Notetracks")
+            print(f"[CoDMayaTools] 🗑️ Removed JSON 'Notetracks' attribute from {cast_node}.")
+
+        # --- Remove all other note-related attributes ---
+        attrs = cmds.listAttr(cast_node) or []
+        for attr in attrs:
+            if attr.lower().startswith("note"):
+                try:
+                    cmds.deleteAttr(f"{cast_node}.{attr}")
+                    print(f"[CoDMayaTools] 🗑️ Deleted extra CAST attribute: {attr}")
+                except Exception:
+                    pass
+
+        # --- Delete the node itself ---
+        try:
+            cmds.delete(cast_node)
+            print(f"[CoDMayaTools] 🧹 Deleted {cast_node} node from scene.")
+        except Exception as e:
+            print(f"[CoDMayaTools] ⚠️ Failed to delete {cast_node} node: {e}")
+
+        # --- Clear UI if applicable ---
+        if windowID and windowID in OBJECT_NAMES:
+            noteListUI = OBJECT_NAMES[windowID][0] + "_NoteList"
+            if cmds.textScrollList(noteListUI, exists=True):
+                cmds.textScrollList(noteListUI, edit=True, removeAll=True)
+            print(f"[CoDMayaTools] 🧽 Cleared UI notetrack list for {windowID} window.")
+
+        print(f"[CoDMayaTools] ✅ Fully removed CAST notetrack data for {windowID}.")
+
+    except Exception as e:
+        print(f"[CoDMayaTools] ⚠️ Error while clearing CAST notetracks: {e}")
+
+
 
 def UpdateNoteFrame(windowID):
     """
@@ -2928,7 +2906,6 @@ def SelectNote(windowID):
             pass
 
         noteFrameField = cmds.intField(OBJECT_NAMES[windowID][0]+"_NoteFrameField", edit=True, value=frame)
-
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # ---------------------------------------------------------------------- General Export Window ---------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -3270,131 +3247,6 @@ def GetExport2Bin(skipSet=True):
 
     return export2binpath
 
-def CheckForUpdatesEXE():
-    # Check if we want updates
-    if QueryToggableOption("AutoUpdate"):
-        # Try run application
-        try:
-            p = ("%s -name %s -version %f -version_info_url %s"
-            % (os.path.join(WORKING_DIR, "autoUpdate.exe"),
-            "CoDMayaTools.py",
-            FILE_VERSION,
-            VERSION_CHECK_URL))
-            subprocess.Popen("%s %f" % (os.path.join(WORKING_DIR, "Updater.exe"), FILE_VERSION))
-        except:
-            # Failed, exit.
-            return
-    else:
-        return
-
-
-#def SetGame(name):
-#    currentGame = name
-
-##########################################################
-#   Ray's Animation Toolkit                              #
-#                                                        #
-#   Credits:                                             #
-#   Aidan - teaching me how to make plugins like this :) #
-##########################################################
-
-def ShowSetStrengthWindow():
-    try:
-        if cmds.window(ram,exists=True):
-            cmds.deleteUI(ram)
-    except:
-        pass
-    global CameraAnimationStrength
-    ram = cmds.window("SetStrength",t="SetStrength",w=300,h=150)
-    cmds.columnLayout(adj=True)
-    cmds.text("Set Camera Animation Strength:")
-    TempStrength = cmds.intSliderGrp(l="Strength",min=1,max=10,field=True,value=CameraAnimationStrength,step=1)
-    cmds.button(l="Set",c=lambda x:SetStrength(TempStrength))
-    cmds.showWindow(ram)
-
-def SetStrength(slider):
-    global CameraAnimationStrength
-    TempStrengthValue = cmds.intSliderGrp(slider,q=True,value=True)
-    CameraAnimationStrength=TempStrengthValue
-    print("Camera Animation Strength = "+str(CameraAnimationStrength))
-
-def GenerateCamAnim(reqarg=""):
-    useDefMesh = False
-    if (cmds.objExists(getObjectByAlias("camera")) == False):
-        print ("Camera doesn't exist")
-        return
-    if (cmds.objExists(getObjectByAlias("weapon")) == False):
-        print ("Weapon doesn't exist")
-        return
-    animStart = cmds.playbackOptions(query=True, minTime=True)
-    animEnd = cmds.playbackOptions(query=True, maxTime=True)
-    jointGun = cmds.xform(getObjectByAlias("weapon"), query=True, rotation=True)
-    jointGunPos = cmds.xform(getObjectByAlias("weapon"), query=True, translation=True)
-    GunMoveXorig = jointGunPos[0]*-0.025
-    GunRotYAddorig = jointGunPos[0]*-0.5
-    GunRotXAddorig = jointGunPos[1]*-0.25
-    progressW = cmds.progressWindow(minValue=animStart,maxValue=animEnd)
-    for i in range(int(animStart),int(animEnd+1)):
-        cmds.currentTime(i)
-        jointGun = cmds.xform(getObjectByAlias("weapon"), query=True, rotation=True)
-        jointGunPos = cmds.xform(getObjectByAlias("weapon"), query=True, translation=True)
-        GunMoveX = jointGunPos[0]*-0.025*CameraAnimationStrength
-        GunRotYAdd = jointGunPos[0]*-0.5*CameraAnimationStrength
-        GunRotXAdd = jointGunPos[1]*-0.25*CameraAnimationStrength
-        GunRot = jointGun
-        GunRot[0] = jointGun[0]
-        GunRot[0] = GunRot[0] * 0.025*CameraAnimationStrength
-        GunRot[1] = jointGun[1]
-        GunRot[1] = GunRot[1] * 0.025*CameraAnimationStrength
-        GunRot[2] = jointGun[2]
-        GunRot[2] = GunRot[2] * 0.025*CameraAnimationStrength
-        print (GunRot)
-        print (jointGun)
-        cmds.select(getObjectByAlias("camera"), replace=True)
-        # cmds.rotate(GunRot[0], GunRot[1], GunRot[2], rotateXYZ=True)
-        cmds.setKeyframe(v=(GunMoveX-GunMoveXorig),at='translateX')
-        cmds.setKeyframe(v=GunRot[0]+(GunRotXAdd-GunRotXAddorig),at='rotateX')
-        cmds.setKeyframe(v=(GunRot[1]+(GunRotYAdd-GunRotYAddorig)),at='rotateY')
-        cmds.setKeyframe(v=GunRot[2],at='rotateZ')
-        cmds.progressWindow(edit=True,step=1)
-    cmds.progressWindow(edit=True,endProgress=True)
-
-def RemoveCameraKeys(reqarg=""):
-    if (cmds.objExists(getObjectByAlias("camera")) == False):
-        print ("ERROR: Camera doesn't exist")
-        return
-    else:
-        print ("Camera exists!")
-        jointCamera = cmds.joint(getObjectByAlias("camera"), query=True)
-    animStart = cmds.playbackOptions(query=True, minTime=True)
-    animEnd = cmds.playbackOptions(query=True, maxTime=True)
-    cmds.select(getObjectByAlias("camera"), replace=True)
-        #cmds.setAttr('tag_camera.translateX',0)
-        #cmds.setAttr('tag_camera.translateY',0)
-        #cmds.setAttr('tag_camera.translateZ',0)
-        #cmds.setAttr('tag_camera.rotateX',0)
-        #cmds.setAttr('tag_camera.rotateY',0)
-        #cmds.setAttr('tag_camera.rotateZ',0)
-    # cmds.rotate(GunRot[0], GunRot[1], GunRot[2], rotateXYZ=True)
-    cmds.cutKey(clear=True,time=(animStart,animEnd+1))
-
-def RemoveCameraAnimData(reqarg=""):
-    if (cmds.objExists(getObjectByAlias("camera")) == False):
-        print ("ERROR: Camera doesn't exist")
-        return
-    else:
-        print ("Camera exists!")
-        jointCamera = cmds.joint(getObjectByAlias("camera"), query=True)
-    animStart = cmds.playbackOptions(query=True, animationStartTime=True)
-    animEnd = cmds.playbackOptions(query=True, animationEndTime=True)
-    cmds.cutKey(clear=True,time=(animStart,animEnd+1))
-    cmds.select(getObjectByAlias("camera"), replace=True)
-    cmds.setAttr(getObjectByAlias("camera")+'.translateX',0)
-    cmds.setAttr(getObjectByAlias("camera")+'.translateY',0)
-    cmds.setAttr(getObjectByAlias("camera")+'.translateZ',0)
-    cmds.setAttr(getObjectByAlias("camera")+'.rotateX',0)
-    cmds.setAttr(getObjectByAlias("camera")+'.rotateY',0)
-    cmds.setAttr(getObjectByAlias("camera")+'.rotateZ',0)
 
 def setObjectAlias(aname):
     if len(cmds.ls("CoDMayaTools")) == 0:
@@ -3489,7 +3341,7 @@ except WindowsError:
     cmds.confirmDialog(message="You're set! You can now export models and anims to any CoD!")
 
 
-CheckForUpdatesEXE()
+
 CreateMenu()
 CreateXAnimWindow()
 CreateXModelWindow()
