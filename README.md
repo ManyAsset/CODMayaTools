@@ -1,7 +1,5 @@
 # Call of Duty Maya Tools
-[![ManyAsset](https://img.shields.io/discord/585171589750849538?color=%23FF8711&label=ManyAsset&logo=discord&logoColor=%23FFFFFF)](https://discord.gg/v2TWkeR)
-[![ManyAsset](https://img.shields.io/youtube/channel/subscribers/UCQLUoUspSxbTKnhfc6ox03w?style=flat&logo=youtube&label=ManyAsset&color=fb0335
-)](https://www.youtube.com/@ManyAsset)
+![ManyAsset](https://img.shields.io/badge/ManyAsset-Wiki-orange?logo=wikipedia)
 
 ## Description:
 Call of Duty Maya Tools supports exporting models, animations, and xcams from Maya.
