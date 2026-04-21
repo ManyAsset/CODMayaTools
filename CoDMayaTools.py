@@ -55,6 +55,7 @@ import shutil
 import zipfile
 import re
 import json
+import importlib
 from PyCoD import xmodel as xModel
 from PyCoD import xanim as xAnim
 from array import array
@@ -75,7 +76,14 @@ OBJECT_NAMES =     {'menu'  :         ["CoDMayaToolsMenu",            "Call of D
                  'xanim' :        ["CoDMayaXAnimExportWindow",      "Export XAnim",            "XAnimExporterInfo",    "RefreshXAnimWindow",    "ExportXAnim"],
                  'xcam' :        ["CoDMayaXCamExportWindow",      "Export XCam",            "XCamExporterInfo",        "RefreshXCamWindow",    "ExportXCam"]}
 # Working Directory
-WORKING_DIR = os.path.dirname(os.path.realpath(__file__))
+try:
+    WORKING_DIR = os.path.dirname(os.path.realpath(__file__))
+except NameError:
+    scene_path = cmds.file(q=True, sn=True)
+    if scene_path:
+        WORKING_DIR = os.path.dirname(scene_path)
+    else:
+        WORKING_DIR = os.getcwd()
 # Current Game
 currentGame = "none"
 # Format (JOINT, PARENTNAME) : NEWNAME
@@ -161,10 +169,20 @@ def CreateMenu():
     cmds.setParent(menu, menu=True)
     cmds.menuItem(divider=True)
     # For easy script updating
-    #cmds.menuItem(label="Reload Script", command="reload(CoDMayaTools)") NEED TO FIX THIS AT SOME POINT AS CURRENTLY GIVES ____FILE____ ERROR ELFEN.
+    cmds.menuItem(
+    label="Reload Script",
+    command=ReloadSelf
+)
 
     # Tools Info
     cmds.menuItem(label="About", command=lambda x:AboutWindow())
+
+
+
+def ReloadSelf(*args):
+    import importlib
+    import CoDMayaTools
+    importlib.reload(CoDMayaTools)
 
 
 def SetCurrentGame(game=None):
@@ -1637,9 +1655,14 @@ def ExportXAnim(filePath):
         # Increment Progress
         ProgressBarStep()
 
-
     # Get Notetracks for this Slot
     slotIndex = cmds.optionMenu(OBJECT_NAMES['xanim'][0]+"_SlotDropDown", query=True, select=True)
+    print("Export slot selected:", slotIndex)
+    print("Slot 0:", cmds.getAttr("XAnimExporterInfo.notetracks[0]"))
+    print("Slot 1:", cmds.getAttr("XAnimExporterInfo.notetracks[1]"))
+    print("Slot 2:", cmds.getAttr("XAnimExporterInfo.notetracks[2]"))
+
+
     noteList = cmds.getAttr(OBJECT_NAMES['xanim'][2]+(".notetracks[%i]" % slotIndex)) or ""
     # Notes (seperated by comma)
     notes = noteList.split(",")
@@ -1669,6 +1692,10 @@ def ExportXAnim(filePath):
     extension = os.path.splitext(filePath)[-1].lower()
     # Export Bin
     if(extension == ".xanim_bin"):
+        print("---- FINAL NOTES BEFORE WRITE ----")
+        for n in xanim.notes:
+            print("FRAME:", n.frame, "NAME:", n.string)
+        print("----------------------------------")
         xanim.WriteFile_Bin(filePath, 3)
     # Export Export
     else:
@@ -1991,7 +2018,16 @@ def CreateXAnimWindow():
     if cmds.control(OBJECT_NAMES['xanim'][0], exists=True):
         cmds.deleteUI(OBJECT_NAMES['xanim'][0])
 
-    cmds.window(OBJECT_NAMES['xanim'][0], title=OBJECT_NAMES['xanim'][1], width=1, height=1, retain=True, maximizeButton=False)
+   # cmds.window(OBJECT_NAMES['xanim'][0], title=OBJECT_NAMES['xanim'][1], width=1, height=1, retain=True, maximizeButton=False)
+
+    cmds.window(
+    OBJECT_NAMES['xanim'][0],
+    title=OBJECT_NAMES['xanim'][1],
+    width=520,     # increased width
+    height=1,
+    retain=True,
+    maximizeButton=False
+)
     form = cmds.formLayout(OBJECT_NAMES['xanim'][0]+"_Form")
 
     # Controls
@@ -2020,6 +2056,17 @@ def CreateXAnimWindow():
     ClearNotes = cmds.button(label="Clear Notes", width=75, command="CoDMayaTools.ClearNotes('xanim')", annotation="Clear ALL notetracks.")
     RenameNoteTrack = cmds.button(label="Rename Note", command="CoDMayaTools.RenameNotes('xanim')", annotation="Rename the currently selected note.")
     removeNoteButton = cmds.button(label="Remove Note", command="CoDMayaTools.RemoveNote('xanim')", annotation="Remove the currently selected note from the notetrack")
+    removeAudioOneShotButton = cmds.button(
+    label="Strip Audio",
+    command="CoDMayaTools.RemoveAudioOneShot('xanim')",
+    annotation="Strip ALL AudioOneShot Prefix's from this slot"
+    )
+    cleanNotesButton = cmds.button(
+        label="Clean Notes",
+        width=75,
+        command="CoDMayaTools.RemoveUnusableNotes('xanim')",
+        annotation="Remove IK, fingers, swim and other unusable technical notes"
+    )
     noteFrameLabel = cmds.text(label="Frame:", annotation="The frame the currently selected note is applied to")
     noteFrameField = cmds.intField(OBJECT_NAMES['xanim'][0]+"_NoteFrameField", changeCommand="CoDMayaTools.UpdateNoteFrame('xanim')", height=21, width=30, minValue=0, annotation="The frame the currently selected note is applied to")
 
@@ -2051,6 +2098,8 @@ def CreateXAnimWindow():
                     (RenameNoteTrack, 'right', 10),
                     (ClearNotes, 'right', 10),
                     (removeNoteButton, 'right', 10),
+                    (removeAudioOneShotButton, 'right', 10),
+                    (cleanNotesButton, 'right', 10),
                     (noteFrameField, 'right', 10),
                     (separator2, 'left', 0), (separator2, 'right', 0),
                     (saveToLabel, 'left', 12),
@@ -2062,34 +2111,78 @@ def CreateXAnimWindow():
                     (separator3, 'left', 0), (separator3, 'right', 0)],
 
         attachControl=[    (separator1, 'top', 6, slotDropDown),
-                        (framesLabel, 'top', 8, separator1),
-                        (framesStartField, 'top', 5, separator1), (framesStartField, 'left', 4, framesLabel),
-                        (framesToLabel, 'top', 8, separator1), (framesToLabel, 'left', 4+35+4, framesLabel),
-                        (framesEndField, 'top', 5, separator1), (framesEndField, 'left', 4, framesToLabel),
-                        (GrabFrames, 'top', 5, separator1), (GrabFrames, 'left', 4, framesEndField),
-                        (fpsLabel, 'top', 8, framesStartField),
-                        (fpsField, 'top', 5, framesStartField), (fpsField, 'left', 21, fpsLabel),
-                        (qualityLabel, 'top', 8, fpsField),
-                        (qualityField, 'top', 5, fpsField), (qualityField, 'left', 21, qualityLabel),
-                        (notetracksLabel, 'top', 5, qualityLabel),
-                        (noteList, 'top', 5, notetracksLabel), (noteList, 'right', 10, removeNoteButton), (noteList, 'bottom', 60, separator2),
-                        (ReverseAnimation, 'top', 10, noteList), (ReverseAnimation, 'right', 10, removeNoteButton),
-                        (TagAlignExport, 'top', 5, ReverseAnimation),
-                        (addNoteButton, 'top', 5, notetracksLabel),
-                        (ReadNotesButton, 'top', 5, addNoteButton),
-                        (RenameNoteTrack, 'top', 5, ReadNotesButton),
-                        (ClearNotes, 'top', 5, RenameNoteTrack),
-                        (removeNoteButton, 'top', 5, ClearNotes),
-                        (noteFrameField, 'top', 5, removeNoteButton),
-                        (noteFrameLabel, 'top', 8, removeNoteButton), (noteFrameLabel, 'right', 4, noteFrameField),
-                        (separator2, 'bottom', 5, fileBrowserButton),
-                        (saveToLabel, 'bottom', 10, exportSelectedButton),
-                        (saveToField, 'bottom', 5, exportSelectedButton), (saveToField, 'left', 5, saveToLabel), (saveToField, 'right', 5, fileBrowserButton),
-                        (fileBrowserButton, 'bottom', 5, exportSelectedButton),
-                        (exportSelectedButton, 'bottom', 5, separator3),
-                        (saveSelectionButton, 'bottom', 5, separator3),
-                        (getSavedSelectionButton, 'bottom', 5, separator3), (getSavedSelectionButton, 'right', 10, saveSelectionButton),
-                        (separator3, 'bottom', 5, exportMultipleSlotsButton)
+
+                            (framesLabel, 'top', 8, separator1),
+                            (framesStartField, 'top', 5, separator1),
+                            (framesStartField, 'left', 4, framesLabel),
+
+                            (framesToLabel, 'top', 8, separator1),
+                            (framesToLabel, 'left', 4+35+4, framesLabel),
+
+                            (framesEndField, 'top', 5, separator1),
+                            (framesEndField, 'left', 4, framesToLabel),
+
+                            (GrabFrames, 'top', 5, separator1),
+                            (GrabFrames, 'left', 4, framesEndField),
+
+                            (fpsLabel, 'top', 8, framesStartField),
+                            (fpsField, 'top', 5, framesStartField),
+                            (fpsField, 'left', 21, fpsLabel),
+
+                            (qualityLabel, 'top', 8, fpsField),
+                            (qualityField, 'top', 5, fpsField),
+                            (qualityField, 'left', 21, qualityLabel),
+
+                            (notetracksLabel, 'top', 5, qualityLabel),
+
+                            (noteList, 'top', 5, notetracksLabel),
+                            (noteList, 'right', 15, removeNoteButton),
+                            (noteList, 'bottom', 60, separator2),
+
+                            (ReverseAnimation, 'top', 10, noteList),
+                            (ReverseAnimation, 'right', 10, removeNoteButton),
+
+                            (TagAlignExport, 'top', 5, ReverseAnimation),
+
+                            # --- Right Column Buttons ---
+                            (addNoteButton, 'top', 5, notetracksLabel),
+                            (ReadNotesButton, 'top', 5, addNoteButton),
+                            (RenameNoteTrack, 'top', 5, ReadNotesButton),
+                            (ClearNotes, 'top', 5, RenameNoteTrack),
+                            (removeNoteButton, 'top', 5, ClearNotes),
+                            (removeAudioOneShotButton, 'top', 5, removeNoteButton),
+                            # --- Right Column Buttons ---
+                            (addNoteButton, 'top', 5, notetracksLabel),
+                            (ReadNotesButton, 'top', 5, addNoteButton),
+                            (RenameNoteTrack, 'top', 5, ReadNotesButton),
+                            (ClearNotes, 'top', 5, RenameNoteTrack),
+                            (removeNoteButton, 'top', 5, ClearNotes),
+                            (removeAudioOneShotButton, 'top', 5, removeNoteButton),
+                            (cleanNotesButton, 'top', 5, removeAudioOneShotButton),
+
+                            # --- Frame Field ---
+                            (noteFrameField, 'top', 5, cleanNotesButton),
+                            (noteFrameLabel, 'top', 8, cleanNotesButton),
+                            (noteFrameLabel, 'right', 6, noteFrameField),
+
+                            # --- Bottom Section ---
+                            (separator2, 'bottom', 5, fileBrowserButton),
+
+                            (saveToLabel, 'bottom', 10, exportSelectedButton),
+
+                            (saveToField, 'bottom', 5, exportSelectedButton),
+                            (saveToField, 'left', 5, saveToLabel),
+                            (saveToField, 'right', 5, fileBrowserButton),
+
+                            (fileBrowserButton, 'bottom', 5, exportSelectedButton),
+
+                            (exportSelectedButton, 'bottom', 5, separator3),
+                            (saveSelectionButton, 'bottom', 5, separator3),
+
+                            (getSavedSelectionButton, 'bottom', 5, separator3),
+                            (getSavedSelectionButton, 'right', 10, saveSelectionButton),
+
+                            (separator3, 'bottom', 5, exportMultipleSlotsButton)
                         ])
 
 def RefreshXAnimWindow():
@@ -2504,125 +2597,252 @@ def safe_get_notetrack_attr(node, index):
 
 
 # -----------------------------------------------------------
-# Read Notetracks
+# Read Notetracks (CAST-Direct Mode)
 # -----------------------------------------------------------
 def ReadNotetracks(windowID):
     """
-    Universal notetrack reader for CAST + SEAnim.
-    Automatically corrects CAST seconds → frames conversion
-    caused by importNotificationTrackNode() in castplugin.
-    Detects whether values are in seconds or frames, per note.
+    Universal notetrack reader.
+
+    CAST mode:
+        Directly copies frame values from CastNotetracks
+        (no scaling / no FPS math)
+
+    SEAnim mode:
+        Uses existing stored frame values as-is
     """
     try:
         use_cast = detect_notetrack_mode()
+
         slotIndex = cmds.optionMenu(
-            OBJECT_NAMES[windowID][0] + "_SlotDropDown", query=True, select=True)
+            OBJECT_NAMES[windowID][0] + "_SlotDropDown",
+            query=True, select=True)
+
         node_name = OBJECT_NAMES[windowID][2]
         attr_target = f"{node_name}.notetracks[{slotIndex}]"
 
-        # Ensure attribute exists
+        # Ensure slot exists
         safe_get_notetrack_attr(node_name, slotIndex)
 
-        # Clear any old UI content
+        # Clear previous
         ClearNotes(windowID)
 
-        # Load dictionary from node (CAST or SEAnim)
         notetracks = __get_notetracks__() or {}
         write_note_type = QueryToggableOption('PrefixNoteType')
 
-        # Detect scene FPS
-        scene_unit = cmds.currentUnit(query=True, time=True).lower()
-        fps_map = {
-            "game": 15, "film": 24, "pal": 25, "ntsc": 30,
-            "show": 48, "palf": 50, "ntscf": 60
-        }
-        fps = fps_map.get(scene_unit, 30)
-        total_frames = int(cmds.playbackOptions(maxTime=True, query=True))
-
         frame_pairs = []
 
-        # --- Process all notes individually ---
-        for note, frames in notetracks.items():
-            if note in ("end", "loop_end"):
-                continue
+        # ---------------------------------------------------
+        # CAST MODE (Direct Copy)
+        # ---------------------------------------------------
+        if use_cast:
+            print("[CoDMayaTools] Using CAST direct-frame mode.")
 
-            # --- Detect per-note unit (seconds or frames) ---
-            if use_cast:
-                note_max_val = max([float(x) for x in frames] or [0])
-                note_is_seconds = note_max_val < (total_frames / fps) * 2.0
-                print(f"[CoDMayaTools] CAST note '{note}': max_val={note_max_val}, "
-                      f"total_frames={total_frames}, fps={fps}, seconds_mode={note_is_seconds}")
-            else:
-                note_is_seconds = False
+            for note, frames in notetracks.items():
 
-            # --- Process each frame value ---
-            for f in frames:
-                try:
-                    frame_val = float(f)
-                except Exception:
+                if note in ("end", "loop_end"):
                     continue
 
-                # ✅ Convert seconds → frames only if CAST and detected as seconds
-                if use_cast and note_is_seconds:
-                    frame_val *= fps
+                if not frames:
+                    continue
 
-                # --- Normalize CAST note range if needed ---
-            if use_cast:
-                try:
-                    anim_min = cmds.playbackOptions(minTime=True, query=True)
-                    anim_max = cmds.playbackOptions(maxTime=True, query=True)
-                    scene_length = anim_max - anim_min
+                for frame in frames:
+                    try:
+                        frame_val = int(round(float(frame)))
+                    except Exception:
+                        continue
 
-                    # Detect if CAST data is normalized to 0–1 (or 0–2 for safety)
-                    if note_max_val > 0 and note_max_val <= 2.5:
-                        scale_factor = total_frames / note_max_val
-                        frame_val *= scale_factor
-                        print(f"[CoDMayaTools] CAST normalization (0–1 range) applied: {note} scale={scale_factor:.3f}")
-                except Exception as norm_ex:
-                    print(f"[CoDMayaTools] ⚠️ CAST normalization skipped for {note}: {norm_ex}")
+                    frame_pairs.append((frame_val, note))
 
-            frame_pairs.append((int(round(frame_val)), note))
+        # ---------------------------------------------------
+        # SEAnim MODE (Legacy behaviour)
+        # ---------------------------------------------------
+        else:
+            print("[CoDMayaTools] Using SEAnim mode.")
 
-        # --- Sort by frame order ---
+            for note, frames in notetracks.items():
+
+                if note in ("end", "loop_end"):
+                    continue
+
+                if not frames:
+                    continue
+
+                for frame in frames:
+                    try:
+                        frame_val = int(round(float(frame)))
+                    except Exception:
+                        continue
+
+                    frame_pairs.append((frame_val, note))
+
+        # ---------------------------------------------------
+        # Sort by frame
+        # ---------------------------------------------------
         frame_pairs.sort(key=lambda x: x[0])
 
-        # --- Build notetrack list string ---
+        # ---------------------------------------------------
+        # Build exporter string
+        # ---------------------------------------------------
         noteList = ""
         appended_notes = []
+
         for frame, note in frame_pairs:
-            if write_note_type and "nt#" not in note:
+
+            display_note = note
+
+            if write_note_type and "nt#" not in display_note:
                 note_type = "sndnt"
-                notesplit = note.split("_")
+                notesplit = display_note.split("_")
+
                 if notesplit[0] in ("viewmodel", "reload"):
                     note_type = "rmbnt"
-                    note = note.replace("viewmodel", "reload")
-                note = "#".join((note_type, note))
+                    display_note = display_note.replace("viewmodel", "reload")
 
-            noteList += f"{note}:{frame},"
-            if note not in appended_notes:
-                cmds.textScrollList(
-                    OBJECT_NAMES[windowID][0] + "_NoteList",
-                    edit=True, append=note
-                )
-                appended_notes.append(note)
+                display_note = "#".join((note_type, display_note))
 
-        # --- Write final list back to node ---
+            noteList += f"{display_note}:{frame},"
+
+            # Append every instance (no uniqueness checking)
+            cmds.textScrollList(
+                OBJECT_NAMES[windowID][0] + "_NoteList",
+                edit=True, append=display_note
+    )
+            appended_notes.append(display_note)
+
+        # Write final string to exporter node
         cmds.setAttr(attr_target, noteList, type="string")
 
-        # --- Auto-select first note in UI ---
         if appended_notes:
             try:
                 SelectNote(windowID)
             except Exception:
                 pass
 
-        print(f"[CoDMayaTools] ✅ Loaded {len(appended_notes)} notetracks ({len(frame_pairs)} frames total).")
+        print(
+            f"[CoDMayaTools] ✅ Loaded "
+            f"{len(appended_notes)} notetrack types "
+            f"({len(frame_pairs)} frames total)."
+        )
 
     except Exception as e:
         print(f"[CoDMayaTools] ⚠️ Failed to read notetracks: {e}")
 
 
+# -----------------------------------------------------------
+# Strip "AudioOneShot" From All Notes
+# -----------------------------------------------------------
+def RemoveAudioOneShot(windowID):
+    """
+    Removes the 'AudioOneShot' prefix from all notes
+    in the current slot, but keeps frames intact.
+    """
+    try:
+        slotIndex = cmds.optionMenu(
+            OBJECT_NAMES[windowID][0] + "_SlotDropDown",
+            query=True, select=True)
 
+        node_name = OBJECT_NAMES[windowID][2]
+        attr_target = f"{node_name}.notetracks[{slotIndex}]"
+
+        noteList = cmds.getAttr(attr_target) or ""
+        notes = [n for n in noteList.split(",") if n.strip()]
+
+        updated_notes = []
+        change_count = 0
+
+        for entry in notes:
+            parts = entry.split(":")
+            if len(parts) != 2:
+                continue
+
+            name = parts[0]
+            frame = parts[1]
+
+            if name.startswith("AudioOneShot@"):
+                name = name.split("@", 1)[1]
+                change_count += 1
+
+            if name.startswith("ps_"):
+                name = name[3:]
+                change_count += 1
+
+            updated_notes.append(f"{name}:{frame}")
+
+        new_noteList = ",".join(updated_notes)
+        if new_noteList:
+            new_noteList += ","
+
+        cmds.setAttr(attr_target, new_noteList, type="string")
+
+        # Refresh UI to reflect changes
+        RefreshXAnimWindow()
+
+        print(f"[CoDMayaTools] 🔄 Stripped AudioOneShot from {change_count} entries.")
+
+    except Exception as e:
+        print(f"[CoDMayaTools] ⚠️ Failed to strip AudioOneShot: {e}")
+
+
+def RemoveUnusableNotes(windowType):
+    slotIndex = cmds.optionMenu(OBJECT_NAMES[windowType][0]+"_SlotDropDown", query=True, select=True)
+
+    noteListUI = OBJECT_NAMES[windowType][0]+"_NoteList"
+    node = OBJECT_NAMES[windowType][2]
+
+    rawNotes = cmds.getAttr(node + ".notetracks[%i]" % slotIndex) or ""
+    if not rawNotes:
+        return
+
+    notes = rawNotes.split(",")
+
+    filteredNotes = []
+
+    for note in notes:
+        if not note.strip():
+            continue
+
+        name = note.split(":")[0]  # ← remove .lower()
+
+        REMOVE_PREFIXES = (
+            "ik_",
+            "fingers_",
+            "start_swim",
+            "ShowBone@",
+            "HideBone@",
+        )
+
+        REMOVE_EXACT = {
+            "mag_eject",
+            "reload checkpoint resume",
+            "show_full_magazine",
+            "reload checkpoint",
+            "ShowBone@j_mag2",
+            "HideBone@j_mag1",
+            "finish",
+        }
+
+        REMOVE_CONTAINS = {
+            "gesture",
+        }
+
+        if (
+            name.startswith(REMOVE_PREFIXES)
+            or name in REMOVE_EXACT
+            or any(s in name for s in REMOVE_CONTAINS)
+        ):
+            continue
+
+        # Keep everything else
+        filteredNotes.append(note)
+
+    # Save back to node
+    newValue = ",".join(filteredNotes)
+    cmds.setAttr(node + ".notetracks[%i]" % slotIndex, newValue, type="string")
+
+    # Refresh UI
+    RefreshXAnimWindow()
+
+    print("Removed unusable notes.")
 
 
 def PrintAllNotetracks(windowID):
@@ -2666,53 +2886,86 @@ def PrintAllNotetracks(windowID):
 # Rename Note
 # -----------------------------------------------------------
 def RenameNotes(windowID):
-    """Universal notetrack rename for CAST + SEAnim modes."""
-    try:
-        slotIndex = cmds.optionMenu(OBJECT_NAMES[windowID][0] + "_SlotDropDown", query=True, select=True)
-        node_name = OBJECT_NAMES[windowID][2]
-        note_attr = f"{node_name}.notetracks[{slotIndex}]"
+    slotIndex = cmds.optionMenu(
+        OBJECT_NAMES[windowID][0] + "_SlotDropDown",
+        query=True, select=True
+    )
 
-        currentIndex = cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", query=True, selectIndexedItem=True)
-        if not currentIndex or currentIndex[0] < 1:
-            MessageBox("No notetrack selected.")
-            return
-        currentIndex = currentIndex[0]
+    selectedIndex = cmds.textScrollList(
+        OBJECT_NAMES[windowID][0] + "_NoteList",
+        query=True, selectIndexedItem=True
+    )
 
-        if cmds.promptDialog(title="Rename NoteTrack", message="Enter new notetrack name:") != "Confirm":
-            return
+    if not selectedIndex or selectedIndex[0] < 1:
+        return
 
-        userInput = cmds.promptDialog(query=True, text=True)
-        noteName = "".join([c for c in userInput if c.isalnum() or c == "_"]) \
-            .replace("sndnt", "sndnt#").replace("rmbnt", "rmbnt#")
+    selectedIndex = selectedIndex[0] - 1
 
-        if not noteName:
-            MessageBox("Invalid note name")
-            return
+    # Get raw stored string for this slot
+    node = OBJECT_NAMES[windowID][2]
+    rawNoteList = cmds.getAttr(
+        node + (".notetracks[%i]" % slotIndex)
+    ) or ""
 
-        # --- Load and parse the notetrack string ---
-        noteList = safe_get_notetrack_attr(node_name, slotIndex)
-        if not noteList:
-            return
-        notes = [n for n in noteList.split(",") if n.strip()]
-        if currentIndex - 1 >= len(notes):
-            return
+    notes = [n for n in rawNoteList.split(",") if n.strip()]
 
-        old_note, frame = notes[currentIndex - 1].split(":")
-        notes[currentIndex - 1] = f"{noteName}:{frame}"
+    if selectedIndex >= len(notes):
+        return
 
-        # --- Write back safely ---
-        noteList = ",".join(notes) + ","
-        cmds.setAttr(note_attr, noteList, type='string')
+    # Extract current name + frame
+    noteInfo = notes[selectedIndex].split(":")
+    oldName = noteInfo[0].strip()
 
-        # --- Update UI ---
-        cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", edit=True, removeIndexedItem=currentIndex)
-        cmds.textScrollList(OBJECT_NAMES[windowID][0] + "_NoteList", edit=True, append=noteName)
-        SelectNote(windowID)
+    if oldName.startswith("@"):
+        oldName = oldName[1:]
+    frame = noteInfo[1]
 
-        print(f"[CoDMayaTools] ✏️ Renamed notetrack '{old_note}' → '{noteName}' (frame {frame}).")
+    # ---------------------------------------
+    # Prefilled prompt dialog
+    # ---------------------------------------
+    result = cmds.promptDialog(
+        title="Rename Notetrack",
+        message="Enter new notetrack name:                                ",
+        text=oldName,
+        button=["Confirm", "Cancel"],
+        defaultButton="Confirm",
+        cancelButton="Cancel",
+        dismissString="Cancel"
+    )
 
-    except Exception as e:
-        print(f"[CoDMayaTools] ⚠️ Failed to rename notetrack: {e}")
+    if result != "Confirm":
+        return
+
+    userInput = cmds.promptDialog(query=True, text=True)
+
+    # Clean input
+    newName = "".join(
+        [c for c in userInput if c.isalnum() or c == "_"]
+    ).replace("sndnt", "sndnt#").replace("rmbnt", "rmbnt#")
+
+    if not newName:
+        MessageBox("Invalid note name")
+        return
+
+    # Replace in list
+    notes[selectedIndex] = f"{newName}:{frame}"
+
+    # Save back
+    newRaw = ",".join(notes) + ","
+    cmds.setAttr(
+        node + (".notetracks[%i]" % slotIndex),
+        newRaw,
+        type="string"
+    )
+
+    # Refresh UI
+    RefreshXAnimWindow()
+
+    print(f"[CoDMayaTools] Renamed '{oldName}' → '{newName}'")
+
+
+
+
 
 
 
@@ -3269,29 +3522,78 @@ def getObjectByAlias(aname):
         return ""
     return cmds.getAttr("CoDMayaTools.objAlias%s" % aname) or ""
 
-# Bind the weapon to hands
+
+
+def find_joint(name):
+    matches = cmds.ls("*:" + name, type="joint") or []
+    matches += cmds.ls(name, type="joint") or []
+
+    if not matches:
+        print("❌ Could not find:", name)
+        return None
+
+    if len(matches) > 1:
+        print("⚠ Multiple matches for", name)
+
+        # Prefer root joint (no parent)
+        for m in matches:
+            if not cmds.listRelatives(m, parent=True):
+                print("Using root:", m)
+                return m
+
+        print("Using first:", matches[0])
+
+    return matches[0]
+
+
+def snap_to_joint(source, target):
+    print("Snapping", source, "to", target)
+
+    target_matrix = cmds.xform(target, q=True, ws=True, matrix=True)
+    cmds.xform(source, ws=True, matrix=target_matrix)
+
+
 def WeaponBinder():
-    # Call of Duty specific
-    for x in range(0, len(GUN_BASE_TAGS)):
-        try:
-            # Select both tags and parent them
-            cmds.select(GUN_BASE_TAGS[x], replace = True)
-            cmds.select(VIEW_HAND_TAGS[x], toggle = True)
-            # Connect
-            cmds.connectJoint(connectMode = True)
-            # Parent
-            mel.eval("parent " + GUN_BASE_TAGS[x] + " " + VIEW_HAND_TAGS[x])
-            # Reset the positions of both bones
-            cmds.setAttr(GUN_BASE_TAGS[x] + ".t", 0, 0, 0)
-            cmds.setAttr(GUN_BASE_TAGS[x] + ".jo", 0, 0, 0)
-            cmds.setAttr(GUN_BASE_TAGS[x] + ".rotate", 0, 0, 0)
-            # Reset the rotation of the parent tag
-            cmds.setAttr(VIEW_HAND_TAGS[x] + ".jo", 0, 0, 0)
-            cmds.setAttr(VIEW_HAND_TAGS[x] + ".rotate", 0, 0, 0)
-            # Remove
-            cmds.select(clear = True)
-        except:
-            pass
+
+    print("\n========== WeaponBinder UPDATED ==========")
+
+    gun = find_joint("j_gun")
+
+    # Prefer tag_weapon_right if it exists
+    hand = (
+        find_joint("tag_weapon_right")
+        or find_joint("tag_weapon")
+        or find_joint("tag_weapon_left")
+    )
+
+    if not gun or not hand:
+        print("❌ Missing required joints.")
+        return
+
+    print("Gun  :", gun)
+    print("Hand :", hand)
+
+    try:
+        # Snap weapon into place first
+        snap_to_joint(gun, hand)
+
+        # Parent weapon to hand
+        print("Parenting...")
+        cmds.parent(gun, hand)
+
+        # Zero local transforms after parenting
+        print("Zeroing local transforms...")
+        cmds.setAttr(gun + ".translate", 0, 0, 0)
+        cmds.setAttr(gun + ".rotate", 0, 0, 0)
+
+        print("✅ Weapon successfully bound and aligned.")
+
+    except Exception as e:
+        print("❌ FAILED:", e)
+
+    cmds.select(clear=True)
+    print("========== WeaponBinder COMPLETE ==========\n")
+
 
 def SetToggableOption(name="", val=0):
     if not val:
